@@ -1,7 +1,7 @@
 ---
-title: "Assignment 3 - Earnings Calls Analysis"
+title: "Earnings Calls Analysis"
 author: "Dave Hurst"
-date: "Sunday, November 02, 2014"
+date: "Sunday, November 11, 2014"
 output: pdf_document
 ---
 The goal of this exercise is to explore the corpus of Earnings Calls transcripts using R.  The corpus is made up of transcripts for the primary two hard disk drivers, Seagate (STX) and Western Digital (WDC).  The transcripts for each quarter were divided into two separate documents, one for the corporate report, and one for Q&A.  These documents were gathered for the fical Q4 (ending in June) 2013, Q4 2014, and Q1 2015, totalling 12 documents in all.
@@ -54,29 +54,136 @@ docs <- tm_map(docs, removeNumbers)  #may want to reconsider doing this
 #TO-DO: compare the differences of stemming and non stemming
 
 ```
-Now the the data is prepared we can create a document term matrix and explore the frequencies
+Now the the data is prepared we can create a document term matrix and explore the frequencies.  Heres the raw DTM.
 
 ```{r}
-
 dtm <- DocumentTermMatrix(docs)
 dtm
 nterms <- dtm$ncol
 inspect(dtm[1:5, c(12:14, 1000:1002, seq(nterms-2,nterms))])  #first 11 have unprintable chars
-
-freq <- colSums(as.matrix(dtm))
-ord <- order(freq)
-freq.most <- freq[tail(ord)]
-print ("The most frequent terms found are:")
-freq.most
-
-terms <- names(freq)
-print ("Find terms with string 'product'")
-freq[grep("product",terms)]
-
-barplot(freq[grep("^cloud$|^hybrid|^product$|products",terms)])  #word boundaries need work
-#
-#TO-DOplay around with synonyms
-#synonyms "line product,product,product line,product lines,product offering,product offerings"
 ```
 
+To do a little more investigation, I created some simple functions:  
+- *mostFrequentTerms* - displays the counts for the most frequent terms in the corpus  
+- *fintTerms*         - lists all the terms in the corpus that match a patter and their counts  
+
+```{r}
+mostFrequentTerms <- function (x.dtm, n=6) {
+  freq <- colSums(as.matrix(x.dtm))
+  ord <- order(freq)
+  freq[tail(ord, n)]
+} 
+
+mostFrequentTerms( dtm )
+
+findTerms <- function (x.dtm, pattern) {
+  freq <- colSums(as.matrix(x.dtm))
+  terms <- names(freq)
+  freq[grep(pattern, terms)]
+}
+
+findTerms( dtm, "product")
+```
+An obvious improvement is that we probably want to count "product" and "products" as a single concept.  Before we do, let's plot some of the more domain relevant concepts.  Note the need for some regex magic to cover the plurals.
+
+```{r}
+barplot(freq[grep("^cloud$|^hybrids*$|^products*$",terms)]) 
+```
+
+So far so good, but I'd like to merge some of the different firms, such as the product/products example above.  I originally tried to create a list of stemmed words and then group all the words that matched that, but that strategy was too broad and would have ended up merging words like "act" and "cataract", so the manual oversight would have been overwhelming.  Instead I settled for merging plurals and past tense: dress = dressed = dresses.
+
+The approach I took was to sort all the terms and then use pattern matching to group neighboring words together into 'synonyms' (I probably should have called these concepts in my code to be consistent with SPSS).  The sort was key in making this efficient, since there were 3000+ terms in the corpus ( approximate number of patterns to check = $3000*2999/2 = 4.5M$).  I assumed one of the matches I was looking for could be found within 10 words, limiting the number of searches to approximately $10*3000 = 30K$.   I wrote the match to a CSV file with the idea that I could use Excel to edit the list, and read it back in -- kind of a poor man's resource template.  I only modified a few of the concepts, as I just wanted to make sure it worked.  Along the way I discovered I could play with things interactively (the beauty of R).  Here's a little narrative to demonstrate:
+
+The first step is to build a seed file with concepts based on plural/past tense word forms:
+```{r}
+dtm.dict <- colnames(as.matrix(dtm))          #a list of all the terms
+synonym.df <- data.frame( root=as.character(dtm.dict), stringsAsFactors=FALSE) #a processing frame
+
+findWordForms <- function(v) {
+   # v is a character vector
+   # v[1] is the root used for the search
+   # look in v for plural or past tense forms and return them as a vector (with root as first term)
+   # -- use this with a sorted list and pass the next 10 (or so) words as part of the vector
+   pattern <- sprintf("%se?d$|%se?s$", v[1], v[1])
+   strings <- v[2:length(v)]
+   c(v[1], strings[grep( pattern, strings)]) 
+}
+
+words <- list()
+for(i in 1:(nrow(synonym.df))) {
+  words[i] <- list( findWordForms( dtm.dict[i:(i+10)]) )
+}
+synonym.df$wordList <- words
+synonym.df$n <- apply(synonym.df, 1, function(x) length(unlist(x$wordList)))  #count the number of synonyms for each root
+synonym.df <- subset(synonym.df, n>1)  #reduce to words with synonyms
+synonym.df$csv <- apply(synonym.df, 1, function(x) paste(unlist(x$wordList), collapse=",")) #create a csv string
+
+outfile <- "synonym_seed.csv"
+infile <- "synonym.csv"
+
+write.table( synonym.df[synonym.df$n > 1, ]$csv, file=outfile, 
+             quote=FALSE, row.names=FALSE, col.names=c("primary term"), sep=",")
+rm(synonym.df)
+```
+The output of the above code extract is a  file called `r outfile`.  This needs to be copied (by the user) and edited as appropriate.  The manually edited file should be called `r infile`.  This prevents the manual edits from being overwritten by the program.  In order for things to work properly, the .csv file should be saved using Excel.
+
+```{r}
+synonyms <- read.csv(infile, stringsAsFactors=FALSE)
+head(synonyms)
+```
+
+Next I wrote a function to replace all the concepts with the first word in the group.
+```{r}
+replaceSynonyms <- function(x, syn) {
+  #replace synonyms with primary term
+  syn
+  for (i in 1:nrow(syn)) {
+    #if(i%%100 == 0) print(sprintf("%d...", i))
+    root <- syn[i,1]
+    j <- 2
+    while (!is.null(syn[i,j]) && grepl("[a-z]", syn[i,j]) ) {   #first entry that has no chars (most reliable test)
+      pattern <- sprintf("%s", syn[i,j])
+      x <- tm_map(x, content_transformer(function(y) gsub(pattern, root, y))) 
+      j <- j+1
+    }
+  }
+  x
+}
+
+docs <- replaceSynonyms(docs, synonyms)
+dtm <- DocumentTermMatrix(docs)
+
+findTerms( dtm, "product") #for comparison post combining word forms
+mostFrequentTerms( dtm )
+```
+*year* and *market* now roll up into the top 6. 
+
+I also noticed the word "think" is high on the list.  Given the nature of the call, I suppose that think is really being used in the context of forecasting, so I thought it would be interesting to roll those terms up together.  First lets look at all the candidates to combine into a single concept
+```{r}
+psyn <- findTerms(dtm, "predict|forecast|think")
+psyn
+```
+Its reasonable to lump all these together, with exception of predictable which is more of an adjective, so I remove that and replace any occurances of these words with "forecast", everything rolls up into that one word.
+
+```{r}
+psyn.words <- names(psyn)[- grep("predictable", names(psyn))]  #remove "predictable"
+docs <- replaceSynonyms(docs, data.frame(matrix( psyn.words, nrow=1 )))
+dtm <- DocumentTermMatrix(docs)
+mostFrequentTerms( dtm )   
+```
+Notice "think" has been replaced by "forecast" in the top six, and gets a bit of a bump in the word count.  Let's plot the top 10.
+```{r}
+par(las=2)
+barplot(mostFrequentTerms( dtm, 10 ))
+```
+and here is our relevant terms plot with the concepts rolled up.
+```{r}
+par(las=0)
+barplot(findTerms(dtm, "^cloud$|^hybrid|^product$"))  #word boundaries need work
+```
+And that's about all the fun I want to have with single word concepts.  Time to move on to word pairs... 
+
+
+References:
+- http://handsondatascience.com/TextMiningO.pdf
 
