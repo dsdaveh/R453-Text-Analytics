@@ -128,6 +128,8 @@ dtm <- DocumentTermMatrix(docs)
 dtm
 nterms <- dtm$ncol
 
+print ("Find terms with string 'product'")
+findTerms(dtm, "product")
 print ("The most frequent terms found are:")
 mostFrequentTerms( dtm )   #"think" is interesting here:  synonomous with predict?
 
@@ -136,10 +138,9 @@ psyn
 psyn.words <- names(psyn)[- grep("predictable", names(psyn))]  #remove "predictable"
 docs <- replaceSynonyms(docs, data.frame(matrix( psyn.words, nrow=1 )))
 dtm <- DocumentTermMatrix(docs)
-mostFrequentTerms( dtm )   #"think" is interesting here:  synonomous with predict?
+mostFrequentTerms( dtm )   
 
-print ("Find terms with string 'product'")
-findTerms(dtm, "product")
-
-barplot(findTerms(dtm, "^cloud$|^hybrid|^product$"))  #word boundaries need work
+par(las=2)
 barplot(mostFrequentTerms( dtm, 10 ))
+par(las=0)
+barplot(findTerms(dtm, "^cloud$|^hybrid|^product$"))  #word boundaries need work
