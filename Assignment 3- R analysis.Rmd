@@ -1,10 +1,11 @@
 ---
-title: "Earnings Calls Analysis"
+title: "Earnings Calls Analysis Part 1"
 author: "Dave Hurst"
 date: "Sunday, November 11, 2014"
-output: pdf_document
+output: html_document
 ---
-The goal of this exercise is to explore the corpus of Earnings Calls transcripts using R.  The corpus is made up of transcripts for the primary two hard disk drivers, Seagate (STX) and Western Digital (WDC).  The transcripts for each quarter were divided into two separate documents, one for the corporate report, and one for Q&A.  These documents were gathered for the fical Q4 (ending in June) 2013, Q4 2014, and Q1 2015, totalling 12 documents in all.
+The goal of this exercise is to explore the corpus of Earnings Calls transcripts using R.  The corpus is made up of transcripts for the primary two hard disk drive manufactures, Seagate (STX) and Western Digital (WDC).  The transcripts for each quarter were divided into two separate documents, one for the corporate report, and one for Q&A.  These documents were gathered for the fical Q4 (ending in June) 2013, Q4 2014, and Q1 2015, totalling 12 documents in all.
+
 
 Load R packages:
 ```{r results='hide', message=FALSE, warning=FALSE}
@@ -25,7 +26,7 @@ cname <- file.path(".", corpus_dir)
 nfiles <- length(dir(cname))
 ```
 There are `r nfiles` files in corpus directory (`r corpus_dir`)
-The text files are available for download here: http://goo.gl/UTF1Fg
+The text files are available for download here: https://github.com/dsdaveh/R453-Text-Analytics/tree/master/EarningsCalls
 ```{r}
 dir(corpus_dir)
 docs <- Corpus(DirSource(cname))
@@ -87,7 +88,7 @@ findTerms( dtm, "product")
 An obvious improvement is that we probably want to count "product" and "products" as a single concept.  Before we do, let's plot some of the more domain relevant concepts.  Note the need for some regex magic to cover the plurals.
 
 ```{r}
-barplot(freq[grep("^cloud$|^hybrids*$|^products*$",terms)]) 
+barplot( findTerms(dtm, "^cloud$|^hybrids*$|^products*$") )
 ```
 
 So far so good, but I'd like to merge some of the different firms, such as the product/products example above.  I originally tried to create a list of stemmed words and then group all the words that matched that, but that strategy was too broad and would have ended up merging words like "act" and "cataract", so the manual oversight would have been overwhelming.  Instead I settled for merging plurals and past tense: dress = dressed = dresses.
@@ -158,12 +159,12 @@ mostFrequentTerms( dtm )
 ```
 *year* and *market* now roll up into the top 6. 
 
-I also noticed the word "think" is high on the list.  Given the nature of the call, I suppose that think is really being used in the context of forecasting, so I thought it would be interesting to roll those terms up together.  First lets look at all the candidates to combine into a single concept
+I also noticed the word "think" is high on the list.  Given the nature of the corpus (an earnings call), I suppose that "think" is really being used in the context of forecasting, so I thought it would be interesting to roll those terms up together.  First lets look at all the candidates to combine into a single concept
 ```{r}
 psyn <- findTerms(dtm, "predict|forecast|think")
 psyn
 ```
-Its reasonable to lump all these together, with exception of predictable which is more of an adjective, so I remove that and replace any occurances of these words with "forecast", everything rolls up into that one word.
+Its reasonable to lump all these together, with exception of "predictable" which is more of an adjective, so I remove that and replace any occurances of these words with "forecast", everything rolls up into that one word.
 
 ```{r}
 psyn.words <- names(psyn)[- grep("predictable", names(psyn))]  #remove "predictable"
@@ -181,9 +182,12 @@ and here is our relevant terms plot with the concepts rolled up.
 par(las=0)
 barplot(findTerms(dtm, "^cloud$|^hybrid|^product$"))  #word boundaries need work
 ```
-And that's about all the fun I want to have with single word concepts.  Time to move on to word pairs... 
+And that's about all the fun I want to have with single word concepts.  Time to move on to word pairs... (to be continued)
 
 
 References:
 - http://handsondatascience.com/TextMiningO.pdf
 
+The data and code used for this exercise can be found on Github at https://github.com/dsdaveh/R453-Text-Analytics
+
+The most recent verson of this document is available [here](http://goo.gl/4FHXiS)

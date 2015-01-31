@@ -53,7 +53,6 @@ toConcept <- function( x, pattern, concept) {
   tm_map(x, content_transformer(function(x, p, str) gsub(p, str, x)), pattern, concept)
 }
 
-
 plotCoverage <- function ( tdm, n ) {
   #create a Fibonacci series for xvalues
   title.cp <- sprintf("Coverage Plot for %d-grams", n)
@@ -119,17 +118,14 @@ docs <- tm_map(docs, removeNumbers)  #may want to reconsider doing this
 #1-Grams
 #how many
 tdm.1 <- TermDocumentMatrix(docs)
-#note how many
 
-
+makeNGram
 
 tdm.2 <- makeNGram( docs, 2)
 tdm.3 <- makeNGram( docs, 3)
 tdm.4 <- makeNGram( docs, 4)
 tdm.5 <- makeNGram( docs, 5)
 tdm.6 <- makeNGram( docs, 6)
-
-makeNGram
 
 tcnt <- c( tdm.1$nrow, tdm.2$nrow, tdm.3$nrow, tdm.4$nrow, tdm.5$nrow , tdm.6$nrow)
 plot (tcnt, type="b", ylab = "# of Terms", xlab="N", main="N-gram size")
@@ -153,22 +149,14 @@ par(las=0, mar=mar.orig)
 
 head(findTerms (tdm.6, "(ste.*){0,1}milligan"))
 
-docs.pre_concept <- docs
-docs <- toConcept (docs, "(ste.*){0,1}milligan", "<MILLIGAN>")
-docs <- toConcept (docs, "(ste.*){0,1}luczo", "<LUCZO>")
-docs <- toConcept (docs, "chief executive officer", "<CEO>")
-docs <- toConcept (docs, "chief financial officer", "<CEO>")
-
-
-findTerms (tdm.6, "(ste.*){0,1}milligan")
-findTerms (tdm.6, "(ste.*){0,1}luczo")
-
 toConcept
-
 docs.pre_concept <- docs
 docs <- toConcept (docs, "(ste.*){0,1}milligan", "<MILLIGAN>")
 docs <- toConcept (docs, "(ste.*){0,1}luczo", "<LUCZO>")
-docs <- toConcept (docs, "ch", "<LUCZO>")
+docs <- toConcept (docs, "chief executive officer|ceo", "<CEO>")
+docs <- toConcept (docs, "chief financial officer|cfo", "<CEO>")
+docs <- toConcept (docs, "executive vice president|evp", "<EVP>")
+docs <- toConcept (docs, "vice president|vp", "<VP>")  #must come after EVP
 
 infile <- "synonym.csv"
 synonyms <- read.csv(infile, stringsAsFactors=FALSE)
@@ -186,7 +174,6 @@ tdm.4 <- makeNGram( docs, 4)
 tdm.5 <- makeNGram( docs, 5)
 tdm.6 <- makeNGram( docs, 6)
 
-mar.orig <- par()$mar
 par(las=2, mar=c(5,25,4,2))
 barplot( mostFrequentTerms(tdm.1, 20), horiz=TRUE )
 barplot( mostFrequentTerms(tdm.2, 20), horiz=TRUE  )
